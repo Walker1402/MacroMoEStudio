@@ -1,0 +1,26 @@
+# --- PROJECT SPECIFIC ---
+# These are your personal chat logs and facts. DO NOT SHARE.
+chats/
+memory.json
+
+# --- PYTHON BASICS ---
+# Compiled bytecode (prevents junk files)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- ENVIRONMENTS ---
+# If you use a virtual environment
+.venv/
+venv/
+env/
+ENV/
+
+# --- IDE & SYSTEM ---
+# Visual Studio Code settings
+.vscode/
+# macOS system files
+.DS_Store
+# Windows system files
+Thumbs.db
