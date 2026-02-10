@@ -78,12 +78,18 @@ class AIBackend:
     def stop_generation(self):
         self.stop_signal = True
 
-    # [VERIFIED] Security Whitelist with Error Handling
+    # [CRITICAL SECURITY FIX] Blocks Command Chaining
     def execute_command(self, cmd):
         if not cmd or not cmd.strip():
             return "Error: No command provided."
 
-        # Strictly define what the AI is ALLOWED to do
+        # 1. Block Shell Operators to prevent "Command Injection"
+        #    e.g. "ping google.com & rm -rf /" would pass the whitelist check without this block.
+        forbidden_chars = [";", "&", "|", ">", "<", "`", "$"]
+        if any(char in cmd for char in forbidden_chars):
+            return "Blocked: Command chaining and redirection are disabled for security."
+
+        # 2. Strict Whitelist
         allowed_commands = ["ipconfig", "dir", "ls", "ping", "systeminfo", "netstat", "echo", "whoami", "date", "time"]
         
         # Extract the base command (e.g., 'ping' from 'ping google.com')
@@ -93,7 +99,7 @@ class AIBackend:
             return f"Blocked: '{base_cmd}' is not in the authorized whitelist."
         
         try:
-            # Added a shorter timeout for safety
+            # shell=True is now safer because we blocked separators
             res = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=10)
             return f"Output:\n{res.decode('utf-8', errors='ignore')}"
         except subprocess.TimeoutExpired:
