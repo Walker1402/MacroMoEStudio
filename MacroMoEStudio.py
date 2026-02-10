@@ -21,7 +21,7 @@ CPU_CORES = max(1, multiprocessing.cpu_count() - 2)
 
 if not os.path.exists(HISTORY_DIR): os.makedirs(HISTORY_DIR)
 
-# [CHANGED] Dynamic Model Loading
+# [VERIFIED] Dynamic Model Loading
 MODELS = {
     "logic": os.getenv("AI_LOGIC_MODEL", "phi4-mini-reasoning:3.8b-q4_K_M"), 
     "vision": os.getenv("AI_VISION_MODEL", "qwen3-vl:4b"), 
@@ -78,8 +78,11 @@ class AIBackend:
     def stop_generation(self):
         self.stop_signal = True
 
-    # [CHANGED] Security Whitelist Implementation
+    # [VERIFIED] Security Whitelist with Error Handling
     def execute_command(self, cmd):
+        if not cmd or not cmd.strip():
+            return "Error: No command provided."
+
         # Strictly define what the AI is ALLOWED to do
         allowed_commands = ["ipconfig", "dir", "ls", "ping", "systeminfo", "netstat", "echo", "whoami", "date", "time"]
         
@@ -137,7 +140,7 @@ class AIBackend:
         gc.collect()
         sys_ctx = self.get_system_context(prompt, attached_files)
         
-        # --- ROUTER LOGIC FIXED ---
+        # --- ROUTER LOGIC ---
         triggers = ["code", "math", "plan", "calc", "network", "ping", "internet", "status", "cmd", "ipconfig"]
         is_logic_needed = any(w in prompt.lower() for w in triggers)
         has_image = any(f.lower().endswith(('.png', '.jpg', '.jpeg')) for f in attached_files)
@@ -477,12 +480,11 @@ class App(BaseClass):
         
         threading.Thread(target=self.run_ai, args=(msg, files_snapshot), daemon=True).start()
 
-    # [CHANGED] Improved UI Feedback with Tags
+    # [VERIFIED] UI Feedback with Tags
     def callback_handler(self, type, data):
         self.chat_box.configure(state="normal")
         
         # Configure styles if they don't exist
-        # Note: Tkinter tags allow us to color specific parts of the text
         try:
             self.chat_box.tag_config("ai_header", foreground="#58a6ff", font=("Arial", 10, "bold"))
             self.chat_box.tag_config("system_msg", foreground="#ff7b72")
