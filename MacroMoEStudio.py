@@ -21,10 +21,11 @@ CPU_CORES = max(1, multiprocessing.cpu_count() - 2)
 
 if not os.path.exists(HISTORY_DIR): os.makedirs(HISTORY_DIR)
 
+# [CHANGED] Dynamic Model Loading
 MODELS = {
-    "logic": "phi4-mini-reasoning:3.8b-q4_K_M", 
-    "vision": "qwen3-vl:4b", 
-    "chat": "gemma3:4b"
+    "logic": os.getenv("AI_LOGIC_MODEL", "phi4-mini-reasoning:3.8b-q4_K_M"), 
+    "vision": os.getenv("AI_VISION_MODEL", "qwen3-vl:4b"), 
+    "chat": os.getenv("AI_CHAT_MODEL", "gemma3:4b")
 }
 
 # ==========================================
@@ -77,12 +78,20 @@ class AIBackend:
     def stop_generation(self):
         self.stop_signal = True
 
+    # [CHANGED] Security Whitelist Implementation
     def execute_command(self, cmd):
-        forbidden = ["format ", "del /s", "rm -rf", "mkfs", ":(){:|:&};:"]
-        if any(x in cmd.lower() for x in forbidden): 
-            return "Blocked: Unsafe Command Detected."
+        # Strictly define what the AI is ALLOWED to do
+        allowed_commands = ["ipconfig", "dir", "ls", "ping", "systeminfo", "netstat", "echo", "whoami", "date", "time"]
+        
+        # Extract the base command (e.g., 'ping' from 'ping google.com')
+        base_cmd = cmd.strip().split()[0].lower()
+        
+        if base_cmd not in allowed_commands:
+            return f"Blocked: '{base_cmd}' is not in the authorized whitelist."
+        
         try:
-            res = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=15)
+            # Added a shorter timeout for safety
+            res = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=10)
             return f"Output:\n{res.decode('utf-8', errors='ignore')}"
         except subprocess.TimeoutExpired:
             return "Error: Command timed out."
@@ -468,21 +477,30 @@ class App(BaseClass):
         
         threading.Thread(target=self.run_ai, args=(msg, files_snapshot), daemon=True).start()
 
+    # [CHANGED] Improved UI Feedback with Tags
     def callback_handler(self, type, data):
+        self.chat_box.configure(state="normal")
+        
+        # Configure styles if they don't exist
+        # Note: Tkinter tags allow us to color specific parts of the text
+        try:
+            self.chat_box.tag_config("ai_header", foreground="#58a6ff", font=("Arial", 10, "bold"))
+            self.chat_box.tag_config("system_msg", foreground="#ff7b72")
+        except: pass 
+
         if type == "start_stream":
-            self.chat_box.configure(state="normal")
-            self.chat_box.insert("end", "\n\n[AI]: ")
+            self.chat_box.insert("end", "\n\n[AI]: ", "ai_header")
         elif type == "stream":
-            self.chat_box.configure(state="normal")
             self.chat_box.insert("end", data)
             self.chat_box.see("end")
         elif type == "status":
             self.status.configure(text=data)
         elif type == "approval_request":
+            # System alerts now stand out in red
+            self.chat_box.insert("end", f"\n\n[SYSTEM]: Requesting permission for: {data}", "system_msg")
             if messagebox.askyesno("Security Alert", f"The AI wants to run this command:\n\n{data}\n\nAllow it?"):
                 res = self.backend.execute_command(data)
-                self.chat_box.configure(state="normal")
-                self.chat_box.insert("end", f"\n\n[SYSTEM]: {res}")
+                self.chat_box.insert("end", f"\n[RESULT]: {res}")
         
         self.chat_box.configure(state="disabled")
 
