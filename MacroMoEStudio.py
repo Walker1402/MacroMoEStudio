@@ -78,19 +78,25 @@ class AIBackend:
     def stop_generation(self):
         self.stop_signal = True
 
-    # [CRITICAL SECURITY FIX] Blocks Command Chaining
+    # [FINAL SECURITY CHECK]
     def execute_command(self, cmd):
         if not cmd or not cmd.strip():
             return "Error: No command provided."
 
-        # 1. Block Shell Operators to prevent "Command Injection"
-        #    e.g. "ping google.com & rm -rf /" would pass the whitelist check without this block.
-        forbidden_chars = [";", "&", "|", ">", "<", "`", "$"]
+        # 1. Block Shell Operators & Newlines to prevent "Command Injection"
+        #    Blocks: chaining (; & |), redirection (> <), subshells (` $), and multiline attacks (\n \r)
+        forbidden_chars = [";", "&", "|", ">", "<", "`", "$", "\n", "\r"]
         if any(char in cmd for char in forbidden_chars):
-            return "Blocked: Command chaining and redirection are disabled for security."
+            return "Blocked: Special characters and command chaining are disabled for security."
 
-        # 2. Strict Whitelist
-        allowed_commands = ["ipconfig", "dir", "ls", "ping", "systeminfo", "netstat", "echo", "whoami", "date", "time"]
+        # 2. Strict Whitelist (Cross-Platform)
+        allowed_commands = [
+            "ipconfig", "ifconfig", "ip", # Network
+            "dir", "ls",                  # File System
+            "ping", "netstat",            # Utilities
+            "systeminfo", "whoami",       # Info
+            "echo", "date", "time"        # Basics
+        ]
         
         # Extract the base command (e.g., 'ping' from 'ping google.com')
         base_cmd = cmd.strip().split()[0].lower()
@@ -99,7 +105,8 @@ class AIBackend:
             return f"Blocked: '{base_cmd}' is not in the authorized whitelist."
         
         try:
-            # shell=True is now safer because we blocked separators
+            # shell=True is safe here ONLY because we filtered operators above.
+            # It is required for 'dir' on Windows.
             res = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT, timeout=10)
             return f"Output:\n{res.decode('utf-8', errors='ignore')}"
         except subprocess.TimeoutExpired:
@@ -147,7 +154,7 @@ class AIBackend:
         sys_ctx = self.get_system_context(prompt, attached_files)
         
         # --- ROUTER LOGIC ---
-        triggers = ["code", "math", "plan", "calc", "network", "ping", "internet", "status", "cmd", "ipconfig"]
+        triggers = ["code", "math", "plan", "calc", "network", "ping", "internet", "status", "cmd", "ipconfig", "ifconfig", "ls", "dir"]
         is_logic_needed = any(w in prompt.lower() for w in triggers)
         has_image = any(f.lower().endswith(('.png', '.jpg', '.jpeg')) for f in attached_files)
 
